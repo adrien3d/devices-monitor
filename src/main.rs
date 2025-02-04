@@ -13,6 +13,9 @@ use btleplug::api::{Central, Manager as _, Peripheral, ScanFilter};
 use btleplug::platform::Manager;
 
 
+const DEVICE_INFORMATION_UUID: uuid::Uuid = uuid_from_u16(0x180A);
+const MODEL_NUMBER_CHARACTERISTIC_UUID: uuid::Uuid = uuid_from_u16(0x2A24);
+const MANUFACTURER_CHARACTERISTIC_UUID: uuid::Uuid = uuid_from_u16(0x2A29);
 const BATTERY_SERVICE_UUID: uuid::Uuid = uuid_from_u16(0x180F);
 const BATTERY_LEVEL_CHARACTERISTIC_UUID: uuid::Uuid = uuid_from_u16(0x2A19);
 
