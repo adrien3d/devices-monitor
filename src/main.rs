@@ -8,6 +8,10 @@ use std::time::Duration;
 use btleplug::api::bleuuid::uuid_from_u16;
 use notify_rust::Notification;
 use tokio::time;
+use chrono::Local;
+use directories::UserDirs;
+use std::fs::OpenOptions;
+use std::io::{Write, BufWriter};
 
 use btleplug::api::{Central, Manager as _, Peripheral, ScanFilter};
 use btleplug::platform::Manager;
@@ -29,6 +33,22 @@ struct DeviceStatus {
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
     pretty_env_logger::init();
+
+    let user_dirs = UserDirs::new().expect("Failed to get user directories");
+    let file_path = user_dirs.document_dir().expect("Failed to get documents directory").join("devices-monitor-log.csv");
+
+    // Open or create the file in append mode
+    let mut file = OpenOptions::new().create(true).append(true).open(&file_path).expect("Failed to open or create file");
+    let is_new_file = file.metadata().expect("Failed to read metadata").len() == 0;
+
+    let mut writer = BufWriter::new(&mut file);
+
+    // Write a header if the file is newly created
+    if is_new_file {
+        writeln!(writer, "Timestamp,Message").expect("Failed to write header");
+    }
+
+    let timestamp = Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
 
     let mut device_statuses: Vec<DeviceStatus> = Vec::new();
     let manager = Manager::new().await?;
@@ -111,6 +131,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
             for device_status in device_statuses.iter() {
                 content = format!("{} {} : {}%\n", device_status.manufacturer, device_status.model,device_status.battery_level);
             }
+            writeln!(writer, "{},{}", timestamp, content).expect("Failed to write data");
             Notification::new()
                 .summary("Battery update")
                 .body(&content)

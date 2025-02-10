@@ -5,6 +5,8 @@ edition = "2021"
 
 [dependencies]
 btleplug = "0.11.7"
+chrono = "0.4.39"
+directories = "6.0.0"
 log = "0.4.25"
 notify-rust = "4.11.5"
 pretty_env_logger = "0.5.0"
