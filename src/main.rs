@@ -19,10 +19,18 @@ const MANUFACTURER_CHARACTERISTIC_UUID: uuid::Uuid = uuid_from_u16(0x2A29);
 const BATTERY_SERVICE_UUID: uuid::Uuid = uuid_from_u16(0x180F);
 const BATTERY_LEVEL_CHARACTERISTIC_UUID: uuid::Uuid = uuid_from_u16(0x2A19);
 
+#[derive(Debug)]
+struct DeviceStatus {
+    manufacturer: String,
+    model: String,
+    battery_level: f32
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
     pretty_env_logger::init();
 
+    let mut device_statuses: Vec<DeviceStatus> = Vec::new();
     let manager = Manager::new().await?;
     let adapter_list = manager.adapters().await?;
     if adapter_list.is_empty() {
@@ -62,13 +70,25 @@ async fn main() -> Result<(), Box<dyn Error>> {
                     debug!("Discover peripheral {:?} services...", &local_name);
 
                     // find the characteristic we want
-                    let services = peripheral.services(); // Store the services in a variable
+                    let services = peripheral.services(); 
+                    
+                    let device_info_serv = services.iter().find(|c| c.uuid == DEVICE_INFORMATION_UUID).expect("Unable to find device information service");
+                    let model_char = device_info_serv.characteristics.iter().find(|c| c.uuid == MODEL_NUMBER_CHARACTERISTIC_UUID).expect("Unable to find model number characteristic");
+                    let manufacturer_char = device_info_serv.characteristics.iter().find(|c| c.uuid == MANUFACTURER_CHARACTERISTIC_UUID).expect("Unable to find manufacturer characteristic");
+                    
                     let batt_serv = services.iter().find(|c| c.uuid == BATTERY_SERVICE_UUID).expect("Unable to find battery service");
-                    debug!("Service UUID {}, primary: {}", batt_serv.uuid, batt_serv.primary);
                     let batt_char = batt_serv.characteristics.iter().find(|c| c.uuid == BATTERY_LEVEL_CHARACTERISTIC_UUID).expect("Unable to find battery level characteristic");
                     debug!("  {:?}", batt_char);
                     let batt_lvl_value = peripheral.read(&batt_char).await?;
                     info!("{:} Battery value: {:?}", local_name, batt_lvl_value);
+
+                    let device_status = DeviceStatus {
+                        manufacturer: String::from_utf8(peripheral.read(&manufacturer_char).await?).unwrap_or_else(|e| format!("Invalid UTF-8 sequence for manufacturer: {}", e)),
+                        model: String::from_utf8(peripheral.read(&model_char).await?).unwrap_or_else(|e| format!("Invalid UTF-8 sequence for model: {}", e)),
+                        battery_level: batt_lvl_value[0] as f32
+                    };
+
+                    device_statuses.push(device_status);
                     // for service in peripheral.services() {
                     //     for characteristic in service.characteristics.clone() {
                     //         println!("  {:?}", characteristic);
@@ -86,11 +106,16 @@ async fn main() -> Result<(), Box<dyn Error>> {
                     // }
                 }
             }
+            info!("{:?}", device_statuses);
+            let mut content: String = String::new();
+            for device_status in device_statuses.iter() {
+                content = format!("{} {} : {}%\n", device_status.manufacturer, device_status.model,device_status.battery_level);
+            }
             Notification::new()
-                .summary("Category:email")
-                .body("This has nothing to do with emails.\nIt should not go away until you acknowledge it.")
-                .icon("firefox")
-                .appname("devices-monitor")
+                .summary("Battery update")
+                .body(&content)
+                .icon("battery")
+                .appname("Devices monitor")
                 .timeout(0) // this however is
                 .show()?;
         }
